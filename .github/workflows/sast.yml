@@ -1,0 +1,32 @@
+# SAST quality gate (IT-03): scan changed files on every push/PR and block
+# merges that introduce critical findings.
+#
+# This repo doubles as the reference for the reusable SAST Action (action.yml).
+# Because the action lives in this same repo, the workflow calls it with
+# `uses: ./` — any *other* repo would instead use `uses: <owner>/<repo>@v1`.
+#
+# Setup (repository → Settings → Secrets and variables → Actions):
+#   SAST_API_URL  — backend base URL, e.g. https://sast.example.com
+#   SAST_TOKEN    — `sast_…` API token created for a ci_agent user
+name: SAST Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need history so the action can diff changed files.
+          fetch-depth: 0
+
+      - name: SAST quality gate
+        uses: ./
+        with:
+          api-url: ${{ secrets.SAST_API_URL }}
+          token: ${{ secrets.SAST_TOKEN }}
+          fail-on: critical

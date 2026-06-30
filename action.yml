@@ -1,0 +1,60 @@
+# Reusable composite GitHub Action — SAST quality gate (F19–F24 / IT-03).
+#
+# Lets any repository run the SAST scan as a single step:
+#
+#   - uses: <owner>/<repo>@v1            # e.g. mybajwk/sast-action@v1
+#     with:
+#       api-url: ${{ secrets.SAST_API_URL }}
+#       token:   ${{ secrets.SAST_TOKEN }}
+#       fail-on: critical                # critical|high|medium|low
+#
+# It scans the files changed in the push/PR against the SAST backend, posts
+# GitHub annotations + a step-summary table, and fails the job when findings at
+# or above `fail-on` are introduced.
+name: "SAST Scan"
+description: "Scan changed files against the SAST backend and gate on severity."
+author: "Enrique Yanuar"
+
+branding:
+  icon: "shield"
+  color: "red"
+
+inputs:
+  api-url:
+    description: "SAST backend base URL (no trailing slash), e.g. https://sast.example.com"
+    required: true
+  token:
+    description: "A `sast_…` API token for a ci_agent user (store as a repo secret)."
+    required: true
+  fail-on:
+    description: "Minimum severity that fails the build: critical|high|medium|low."
+    required: false
+    default: "critical"
+  base-sha:
+    description: "Diff base SHA. Defaults to the PR base on pull_request, else the push 'before' SHA."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Resolve diff base
+      id: base
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.base-sha }}" ]; then
+          echo "sha=${{ inputs.base-sha }}" >> "$GITHUB_OUTPUT"
+        elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          echo "sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+        else
+          echo "sha=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Run SAST quality gate
+      shell: bash
+      env:
+        SAST_API_URL: ${{ inputs.api-url }}
+        SAST_TOKEN: ${{ inputs.token }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        BASE_SHA: ${{ steps.base.outputs.sha }}
+      run: bash "${{ github.action_path }}/ci/sast-scan.sh"
