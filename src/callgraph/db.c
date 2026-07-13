@@ -20,7 +20,7 @@ void build_user_query(char *out, size_t out_size, const char *username)
 int lookup_user(const char *username, void *db)
 {
     char query[512];
-    build_user_query(query, sizeof(query), username); /* hop to CWE-89 */
+    build_user_query(query, sizeof(query), username); /* hop to CWE-89 (see build_user_query) */
 
     printf("[DB] %s\n", query);
     /* db_exec(db, query); */
