@@ -22,6 +22,25 @@ set -euo pipefail
 FAIL_ON="${FAIL_ON:-critical}"
 BASE_SHA="${BASE_SHA:-HEAD~1}"
 
+# Strip a trailing slash so "$SAST_API_URL/api/…" never doubles the slash.
+SAST_API_URL="${SAST_API_URL%/}"
+
+# Validate the diff base. GitHub sends `github.event.before` as all-zeros on a
+# branch's first push, and after force-pushes/history rewrites the SHA may not
+# exist in this clone at all — either would make `git diff` die under `set -e`.
+# Fall back to HEAD~1, and to the empty tree on a single-commit repo.
+if [ -z "$BASE_SHA" ] \
+   || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+   || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+  if git rev-parse -q --verify "HEAD~1^{commit}" >/dev/null 2>&1; then
+    echo "::notice::diff base '$BASE_SHA' unavailable — falling back to HEAD~1"
+    BASE_SHA="HEAD~1"
+  else
+    echo "::notice::no parent commit — scanning all files against the empty tree"
+    BASE_SHA=$(git hash-object -t tree /dev/null)
+  fi
+fi
+
 # Severity ranking for the quality gate.
 rank() {
   case "$1" in
